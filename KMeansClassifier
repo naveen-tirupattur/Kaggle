@@ -1,0 +1,165 @@
+  
+package src.digitrecognizer;
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
+import org.apache.mahout.common.distance.EuclideanDistanceMeasure;
+import org.apache.mahout.common.distance.SquaredEuclideanDistanceMeasure;
+import org.apache.mahout.math.DenseVector;
+import org.apache.mahout.math.NamedVector;
+import org.apache.mahout.math.Vector;
+
+/**
+ * @author Naveen Tirupattur
+ *
+ */
+public class KMeansClassifer {
+
+	/**
+	 * @param args
+	 */
+	public static void main(String[] args) {
+		// TODO Auto-generated method stub
+		try {
+
+			/*Training*/
+			List myVar = new ArrayList<Integer>();
+            System.out.println("myvar: "+myVar);
+
+
+			//Parse the csv training file and create a list of vectors
+			//csvIter = new CSVVectorIterator(new FileReader("/Users/naveenit7sep/MyWorkspace/Kaggle/train1.csv"));
+			BufferedReader reader = new BufferedReader(new FileReader("/Users/naveenit7sep/MyWorkspace/Kaggle/train1.csv"));
+			List<NamedVector> trainingVectorList = new ArrayList<>();
+			String line;
+			while ((line = reader.readLine()) != null) {
+				String[] c = line.split(",");
+				double[] d = new double[c.length-1];
+				for (int i = 1; i < c.length-1; i++)
+				{
+					d[i] = Double.parseDouble(c[i]);
+				}
+				Vector v = new DenseVector(d);
+				trainingVectorList.add(new NamedVector(v,c[0]));
+				c = null;
+				d = null;
+			}
+			reader.close();
+			System.out.println("Training Vector list size: "+trainingVectorList.size());
+			Map<String,Vector> trainingDigitsMap = new HashMap<>(); 
+			int[] count = new int[10];
+			//Aggregate all the vectors with same label and put them in a Map
+			for(NamedVector v:trainingVectorList)
+			{
+				for(int i=0;i<=9;i++)
+				{
+					//If the first element matches the label 0 - 9
+					if(v.getName().equals(String.valueOf(i)))
+					{
+						//Check if a vector exists in the map for the given label
+						if(trainingDigitsMap.get(String.valueOf(i)) != null)
+						{
+							//Get the vector from Map and aggregate it with newVector
+							Vector newVector = trainingDigitsMap.get(String.valueOf(i));
+							newVector = newVector.plus(v);
+							trainingDigitsMap.put(String.valueOf(i), newVector);
+
+						}else
+						{
+							//Put the vector in Map 
+							trainingDigitsMap.put(String.valueOf(i) , v);
+						}
+						//Keep count of vectors per label
+						count[i] = count[i]+1;
+					}
+				}
+			}
+
+			trainingVectorList = null;
+			line = null;
+
+			//Calculate the average of vector per label
+			for(int i=0;i<count.length;i++)
+			{
+				Vector v = trainingDigitsMap.get(String.valueOf(i));
+				v = v.divide((double)count[i]);
+				trainingDigitsMap.put(String.valueOf(i), v);
+			}
+
+			/*Testing*/
+
+			//Parse the csv training file and create a list of vectors
+			List<Vector> testingVectorList = new ArrayList<>();
+			reader = new BufferedReader(new FileReader("/Users/naveenit7sep/MyWorkspace/Kaggle/test1.csv"));
+			while ((line = reader.readLine()) != null) {
+				String[] c = line.split(",");
+				double[] d = new double[c.length];
+				for (int i = 0; i < c.length; i++)
+					d[i] = Double.parseDouble(c[i]);
+				Vector v = new DenseVector(d);
+				testingVectorList.add(v);
+				c = null;
+				d = null;
+			}
+			reader.close();
+			System.out.println("Testing Vector list size: "+testingVectorList.size());
+			BufferedWriter writer = new BufferedWriter(new FileWriter("/Users/naveenit7sep/MyWorkspace/Kaggle/digitsSqdEuclidean.csv"));
+			writer.append("ImageId,Label\n");
+			int counter=1;
+			for(Vector v:testingVectorList)
+			{
+				double[] d = new double[10];
+				for(int i=0;i<=9;i++)
+				{
+					//double distance = new EuclideanDistanceMeasure().distance(v,trainingDigitsMap.get(String.valueOf(i)));
+					double distance = new SquaredEuclideanDistanceMeasure().distance(v,trainingDigitsMap.get(String.valueOf(i)));
+					d[i]=distance;
+				}
+				writer.append(counter+","+getMinimum(d)+"\n");
+				counter++;
+			}
+			writer.close();
+			testingVectorList=null;
+			trainingDigitsMap = null;
+
+			//			distance = new SquaredEuclideanDistanceMeasure().distance(digitsMap.get(1.0), digitsMap.get(2.0));
+			//			System.out.println(distance);
+
+		} catch (FileNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (NumberFormatException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		} catch (IOException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+
+	}
+
+	private static int getMinimum(double[] distanceArray)
+	{
+		int minimum=0;
+		double  minimumDigit = distanceArray[0];
+		for(int i=1;i<distanceArray.length;i++)
+		{
+			if(distanceArray[i]<= minimumDigit) 
+			{
+				minimum = i;
+				minimumDigit = distanceArray[i];
+			}
+		}
+		return minimum;
+	}
+}
